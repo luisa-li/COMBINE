@@ -22,6 +22,7 @@ def main():
     print(estimate_pi(10000))
     print(estimate_pi(100000))
     print(estimate_pi(1000000))
+    print(estimate_pi(10000000))
 
 if __name__ == "__main__":
     main()
