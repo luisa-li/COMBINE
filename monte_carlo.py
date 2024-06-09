@@ -30,3 +30,20 @@ if __name__ == "__main__":
 
 
 
+"""
+This code is heavily referenced from the repository here: https://github.com/danielbouman/iccp-assignment-1
+The reference was primarily used to understand the equations governing the motions of argon gas, and how the customary practices used
+to carry out molecular simulations in this manner. 
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+num_particles = 5
+mass = 1.0
+dt = 0.01
+t_max = 10
+
+def initialze_positions(N, l):
+  """Initializes the positions of the N particles randomly within a box of size (l, l, l)"""
