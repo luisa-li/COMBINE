@@ -1,70 +1,56 @@
-"""
-This code runs a little simulation of argon gas, considering wall collisions and particle to particle collisions.
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.spatial.distance import cdist
 
-def normalize_quantities(quantities: np.array, N: int) -> np.array:
+# other physical constants
+ARGON_MASS = 6.63e-26 # kg, mass of argon
+KB = 1.380e-23 # J/K, Boltzmanns' constant 
+
+# defining the Leonnard Jones potential calculation
+EPSILON = 1.658e-21 # kJ/mol, the well depth and how strongly the particles attract each other
+SIGMA = 3.4e-10 # meters, the distance at which the intermolecular potential for the two particles is zero
+
+# defining the constants used for the simulation
+NUM_PARTICLES = 100
+DT = 1e-13 # seconds
+NSTEPS = 200 
+BOX_SIZE = 100 * SIGMA
+TEMP = 90 # kelvins
+NORMALIZATION_INTERVAL = 25 # normalize every x steps to correct for numerical errors
+
+# defining the scaling factor for the Maxwell-Boltzmann velocity distribution
+SCALING_FACTOR = np.sqrt(KB * TEMP / ARGON_MASS) 
+
+def normalize_velocities(quantities: np.array) -> np.array:
     """
-    Normalizes the velocities or acceleration of the N particles.
+    Normalizes the velocity over the N particles. 
+    This means subtracting the velocity by its average in all three dimensions.
     Args:
-        velocities (np.array): Some quantity of the particles, of shape (N, 3)
+        velocities (np.array): Velocity of the particles, of shape (N, 3)
         N (int): Number of particles 
 
     Returns:
         np.array: Normalized quantities 
     """
-    average = np.sum(quantities, axis=0) / N
+    average = np.sum(quantities, axis=0) / NUM_PARTICLES
     return quantities - average
 
-def proj(u: np.array, v: np.array) -> np.array:
+def lennard_jones_force(r: float) -> float: 
     """
-    Calculates the projection of u onto v.
-    """
-    dot = np.dot(u, v)
-    mag_squared = np.dot(v, v)
-    proj = (dot / mag_squared) * v 
-    return proj
-
-def calculate_collision(u: np.array, v: np.array, up: np.array, vp: np.array) -> tuple[np.array, np.array]: 
-    """
-    Calculates the velocity vector of two particles after their collision.
-    u, v are the velocity vectors, and up and vp are the position vectors
-    """
-
-    dot = np.dot((u - v), (up - vp))
-    if dot > 0:
-        # particles are moving away from each other, do not make them collide again to avoid shaking
-        return u, v
-    else:
-        vel_u = u - (2 * proj(u, u - v))
-        vel_v = v - (2 * proj(v, u - v))
-        return vel_u, vel_v
-
-def filter_equivalent_pairs(pairs: np.array) -> np.array:
-    """
-    Filters out equivalent pairs from the np.array, which represents a list of pairs. 
-    An example of an equivalent pair would be (3, 4) and (4, 3).
+    Calculate the Lennard Jones force between argon atoms, this formula is obtained by taking the derivative of the Lennard Jones potential with respect to r. 
+    The first term is repulsion, and the second term is atttraction. 
 
     Args:
-        pairs (np.array): List of pairs.
+        r (float): The distance between the two molecules. 
 
     Returns:
-        np.array: Deduplicated list of pairs.
+        float: The force between the two argon atoms. 
     """
-    tups = [tuple(sorted(pair)) for pair in pairs] # terrible runtime that I would not like to fix
-    return list(set(tups))
-
-
-def leonnard_jones_force(r: float, epsilon: float, sigma: float):
-    """
-    Calculates the Leonnard Jones force between two particles of distance r apart. 
-    """
-    return (3 * epsilon) * (2 * (sigma / r)**12 - (sigma / r)**6)
-
+    t1 = SIGMA**12 / r**13
+    t2 = (1/2) * (SIGMA**6 / r**7)
+    force = 48 * EPSILON * (t1 - t2)
+    return force
 
 def extend_to_magnitude(mag: float, dir: np.array): 
     """
@@ -74,31 +60,42 @@ def extend_to_magnitude(mag: float, dir: np.array):
     unit_vector = dir / magnitude
     return unit_vector * mag 
 
+def calculate_acceleration(positions: np.array) -> np.array:
+    """
+    Calculates the acceleration of the argon atoms according to their positions by calculating the Lennard Jones force on each of the atoms. 
 
-# initialize simulation constants 
-NUM_PARTICLES = 3
-MASS = 1
-DT = 0.01 # time steps
-T_MAX = 10 # max time 
-BOX_SIZE = 5 # size of the cube these little particles live in
-MIN_INITIAL_VELOCITY = -3
-MAX_INITIAL_VELOCITY = 3
-MIN_INITIAL_ACCELERATION = -2
-MAX_INITIAL_ACCELERATION = 2
+    Args:
+        positions (np.array): Positions of the argon atoms, shape (NUM_PARTICLES, 3)
 
-NORMALIZATION_INTERVAL = 50 # every x number of steps, normalize velocities and acceleration to conserve momentum and force
-COLLISION_RADIUS = 0.5 # particles that come this close to each other in distance will colllide
+    Returns:
+        np.array: The acceleleration of the particles, shape (NUM_PARTICLES, N)
+    """
 
-# initialize positions, velocities and time steps
+    distances = cdist(positions, positions, 'euclidean')
+    lj_function = np.vectorize(lennard_jones_force)
+    np.fill_diagonal(distances, 1e-10) # filling the diagonal with a tiny value to avoid division by zero errors
+    forces = lj_function(distances)
+    np.fill_diagonal(forces, 0) # molecules have no force on themselves
+    vectorized_forces = np.zeros(positions.shape)
+    for p1 in range(NUM_PARTICLES):
+        for p2 in range(NUM_PARTICLES):
+            if p1 == p2:
+                continue
+            else:
+                force = forces[p1, p2]
+                vector = p1 - p2
+                vectorized_forces[p1] += extend_to_magnitude(force, vector)
+    
+    acceleration = vectorized_forces / ARGON_MASS 
+    return acceleration
+
+# assigning random starting positions in the box 
 positions = np.random.uniform(-BOX_SIZE / 2, BOX_SIZE / 2, size=(NUM_PARTICLES, 3))
-initial_velocities = np.random.uniform(MIN_INITIAL_VELOCITY, MAX_INITIAL_VELOCITY, size=(NUM_PARTICLES, 3))
-velocities = normalize_quantities(initial_velocities, NUM_PARTICLES)
-initial_acceleration = np.random.uniform(MIN_INITIAL_ACCELERATION, MAX_INITIAL_ACCELERATION, size=(NUM_PARTICLES, 3))
-acceleration = normalize_quantities(initial_acceleration, NUM_PARTICLES)
-
-# leonnard jones potential constant to use
-EPSILON = 0.238
-SIGMA = 3.405
+# assigning random velocities according to the Maxwell-Boltzmann velocity distribution
+velocities = np.random.normal(0, 1, (NUM_PARTICLES, 3)) * SCALING_FACTOR
+velocities = normalize_velocities(velocities)
+# updating accelerations according to the positions 
+accelerations = calculate_acceleration(positions)
 
 # initialize the scatter plot to visualize
 fig = plt.figure(figsize=(8, 8))  
@@ -116,54 +113,25 @@ ax.set_title('Molecular Dynamics Simulation of Argon')
 
 def update(t):
     
-    global positions, velocities, acceleration
-
-    if t % 50 == 0: # every 50 time steps, normalize velocity
-        velocities = normalize_quantities(velocities, NUM_PARTICLES)
-        acceleration = normalize_quantities(acceleration, NUM_PARTICLES)
+    global positions, velocities, accelerations
     
-    positions = positions + (velocities * DT) + (1/2) * acceleration * DT * DT
-
-    # calculating particle to particle collision
-    distances = cdist(positions, positions, 'euclidean')
-    particle_collisions = distances < COLLISION_RADIUS
-    np.fill_diagonal(particle_collisions, False)
-
-    if particle_collisions.any():
-        # collision has happened between two particles, recalculate velocity for the collided particles
-        collided_pairs = np.transpose(np.where(particle_collisions))
-        filtered_pairs = filter_equivalent_pairs(collided_pairs)
-        for p1, p2 in filtered_pairs:
-            velocities[p1], velocities[p2] = calculate_collision(velocities[p1], velocities[p2], positions[p1], positions[p2])
+    if t % NORMALIZATION_INTERVAL == 0: # every x time steps, normalize velocity
+        velocities = normalize_velocities(velocities)
     
-    # calculating particle to wall collision, in this case, flip the dimension that it hits
+    positions = positions + (velocities * DT) + (1/2) * accelerations * DT * DT
+
     wall_collisions = abs(positions) > BOX_SIZE / 2 # this is a (N, 3) of T and F
     if wall_collisions.any():
         multiplier = np.ones(wall_collisions.shape)
         multiplier[wall_collisions] = -1
         velocities = np.multiply(velocities, multiplier)
 
-    velocities = velocities + (acceleration * DT)
+    velocities = velocities + (accelerations * DT)
 
-    np.fill_diagonal(distances, 1e20) # fill the diagonal with dummy values since particles should not interact with each other 
-    LJ_function = np.vectorize(leonnard_jones_force)
-    result = LJ_function(distances, EPSILON, SIGMA)
-    np.fill_diagonal(result, 0) # fill the forces with 0 since particles have a zero force on each other
-    accel_changes = np.zeros(positions.shape)
-    for p1 in range(NUM_PARTICLES):
-        for p2 in range(NUM_PARTICLES):
-            if p1 == p2:
-                continue
-            else:
-                force = result[p1, p2]
-                vector = p2 - p1
-                accel_changes[p1] += extend_to_magnitude(force, vector)
+    accelerations = calculate_acceleration(positions)
 
-    acceleration = acceleration + accel_changes
-
-    # updating scatterplot 
     scatter._offsets3d = (positions[:, 0], positions[:, 1], positions[:, 2])
 
-ani = animation.FuncAnimation(fig, update, frames=int(T_MAX/DT), interval=50)
+ani = animation.FuncAnimation(fig, update, frames=int(NSTEPS), interval=50)
 
 plt.show()

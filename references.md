@@ -1,3 +1,0 @@
-List of references used for the argon simulation: 
-- https://chem.libretexts.org/Bookshelves/Physical_and_Theoretical_Chemistry_Textbook_Maps/Supplemental_Modules_(Physical_and_Theoretical_Chemistry)/Physical_Properties_of_Matter/Atomic_and_Molecular_Properties/Intermolecular_Forces/Specific_Interactions/Lennard-Jones_Potential#:~:text=The%20Lennard%2DJones%20Potential,-The%20Lennard%2DJones&text=V%20is%20the%20intermolecular%20potential,is%20zero%20(Figure%201).
-- https://en.wikipedia.org/wiki/Maxwell%E2%80%93Boltzmann_distribution
