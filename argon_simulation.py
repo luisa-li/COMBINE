@@ -76,11 +76,11 @@ def extend_to_magnitude(mag: float, dir: np.array):
 
 
 # initialize simulation constants 
-NUM_PARTICLES = 100
+NUM_PARTICLES = 3
 MASS = 1
 DT = 0.01 # time steps
 T_MAX = 10 # max time 
-BOX_SIZE = 100 # size of the cube these little particles live in
+BOX_SIZE = 5 # size of the cube these little particles live in
 MIN_INITIAL_VELOCITY = -3
 MAX_INITIAL_VELOCITY = 3
 MIN_INITIAL_ACCELERATION = -2
