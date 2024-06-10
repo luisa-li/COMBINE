@@ -80,7 +80,7 @@ NUM_PARTICLES = 100
 MASS = 1
 DT = 0.01 # time steps
 T_MAX = 10 # max time 
-BOX_SIZE = 6 # size of the cube these little particles live in
+BOX_SIZE = 100 # size of the cube these little particles live in
 MIN_INITIAL_VELOCITY = -3
 MAX_INITIAL_VELOCITY = 3
 MIN_INITIAL_ACCELERATION = -2
@@ -120,6 +120,7 @@ def update(t):
 
     if t % 50 == 0: # every 50 time steps, normalize velocity
         velocities = normalize_quantities(velocities, NUM_PARTICLES)
+        acceleration = normalize_quantities(acceleration, NUM_PARTICLES)
     
     positions = positions + (velocities * DT) + (1/2) * acceleration * DT * DT
 
@@ -158,7 +159,7 @@ def update(t):
                 vector = p2 - p1
                 accel_changes[p1] += extend_to_magnitude(force, vector)
 
-    # acceleration = acceleration + accel_changes
+    acceleration = acceleration + accel_changes
 
     # updating scatterplot 
     scatter._offsets3d = (positions[:, 0], positions[:, 1], positions[:, 2])
